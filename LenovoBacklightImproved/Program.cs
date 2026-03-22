@@ -3,6 +3,111 @@ using System.Runtime.InteropServices;
 
 namespace LenovoBacklightImproved
 {
+    /*
+     * Keyboard hook
+     */
+    using System.Runtime.InteropServices;
+    internal static class KeyboardHook
+    {
+        private const int WH_KEYBOARD_LL = 13;
+        private const int WM_KEYDOWN = 0x0100;
+        private const int WM_KEYUP = 0x0101;
+
+
+        private static IntPtr _hookID = IntPtr.Zero;
+        private static LowLevelKeyboardProc _proc = HookCallback;
+
+        public static event Action? OnKeyPressed;
+
+        public static void Start()
+        {
+            _hookID = SetHook(_proc);
+        }
+
+        public static void Stop()
+        {
+            UnhookWindowsHookEx(_hookID);
+        }
+
+        private static IntPtr SetHook(LowLevelKeyboardProc proc)
+        {
+            using (var curProcess = Process.GetCurrentProcess())
+            using (var curModule = curProcess.MainModule!)
+            {
+                return SetWindowsHookEx(WH_KEYBOARD_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
+            }
+        }
+
+        private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode;
+            public uint scanCode;
+            public KbdLlHookFlags flags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [Flags]
+        private enum KbdLlHookFlags : uint
+        {
+            LLKHF_EXTENDED = 0x01,
+            LLKHF_INJECTED = 0x10,
+            LLKHF_ALTDOWN = 0x20,
+            LLKHF_UP = 0x80
+        }
+
+        private static HashSet<int> keysCurrentlyDown = new HashSet<int>();
+        private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0)
+            {
+                var hookStruct = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+
+                // Ignore injected (synthetic) input
+                if ((hookStruct.flags & KbdLlHookFlags.LLKHF_INJECTED) != 0)
+                {
+                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                }
+
+                int vkCode = Marshal.ReadInt32(lParam);
+
+                if (wParam == (IntPtr)WM_KEYDOWN)
+                {
+                    // Detect new key press (not repeat)
+                    if (!keysCurrentlyDown.Contains(vkCode))
+                    {
+                        Trace.WriteLine($"Key down - {vkCode}");
+                        keysCurrentlyDown.Add(vkCode);
+                        OnKeyPressed?.Invoke();
+                    }
+                }
+                else if (wParam == (IntPtr)WM_KEYUP)
+                {
+                    // Remove key from set
+                    keysCurrentlyDown.Remove(vkCode);
+                }
+            }
+
+            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+
+        // P/Invoke
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll")]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
+    }
+
     class Program : Form
     {
         /*
@@ -35,6 +140,13 @@ namespace LenovoBacklightImproved
 
         private bool isStatusChangeFromUs = false;
 
+        private bool ignoreMouseEvents = false;
+
+        DateTime lastBacklightOffTime = DateTime.MinValue;
+
+        DateTime lastKeyPressTime = DateTime.Now;
+
+
         /*
          *  Power Setting Variables
          */
@@ -51,6 +163,12 @@ namespace LenovoBacklightImproved
             Msg = 0x218,
             WParam = 0x07,
         };
+
+        private void OnApplicationExit(object? sender, EventArgs e)
+        {
+            Trace.WriteLine("Application exiting - stopping keyboard hook.");
+            KeyboardHook.Stop();
+        }
 
         /*
          *  Constructors
@@ -98,6 +216,24 @@ namespace LenovoBacklightImproved
 
             selectBacklightLevel(Properties.Settings.Default.BacklightLevel);
 
+            // Setup and start keyboard activity monitor
+            KeyboardHook.OnKeyPressed += () =>
+            {
+                Trace.WriteLine("Key press detected.");
+                lastKeyPressTime = DateTime.Now;
+
+                if (selectedBacklightLevel > 2 && currentBacklightStatus == 0)
+                {
+                    Trace.WriteLine("Key press detected - turning backlight on.");
+                    setBacklightStatusSafe(keyboardBacklightStatusControl, getStatusFromLevel(selectedBacklightLevel));
+                }
+            };
+
+            KeyboardHook.Start();
+
+            // To Clean up
+            Application.ApplicationExit += OnApplicationExit;
+
             Application.Run(systemTray);
         }
 
@@ -133,12 +269,14 @@ namespace LenovoBacklightImproved
             {
                 Trace.WriteLine("The system is going to sleep! Stopping timeoutTimer!");
                 stopTimer();
+                KeyboardHook.Stop();
             }
             else if (m.Msg == resumeFromSleep.Msg && m.WParam == resumeFromSleep.WParam)
             {
                 Trace.WriteLine("The system has waken up! Starting timeoutTimer!");
                 setBacklightStatusSafe(keyboardBacklightStatusControl, getStatusFromLevel(selectedBacklightLevel));
                 startTimer();
+                KeyboardHook.Start();
             }
 
             // Call the base method
@@ -196,56 +334,91 @@ namespace LenovoBacklightImproved
 
         private void checkAndCorrectBacklightStatus(object? sender, System.Timers.ElapsedEventArgs e, KeyboardBacklightStatusControl keyboardBacklightStatusControl)
         {
+            // Track keyboard key press
+            TimeSpan idleDuration = DateTime.Now - lastKeyPressTime;
+
+            // Track keyboard and mouse events 
             uint idleTime = SystemIdle.getIdleTime();
+
+            // Check status 
             byte newBacklightStatus = keyboardBacklightStatusControl.GetStatus();
             byte expectedStatus = getStatusFromLevel(selectedBacklightLevel);
+            TimeSpan ignoreIdleResetDuration = TimeSpan.FromMilliseconds(getTimerInterval());
 
             Trace.WriteLine($"Idle time: {idleTime}");
-            Trace.WriteLine($"Backlight status check: {currentBacklightStatus}, {newBacklightStatus}, {isStatusChangeFromUs}");
+            Trace.WriteLine($"Idle duration for key press: {idleDuration}");
+            Trace.WriteLine($"Backlight status check: {currentBacklightStatus}, {newBacklightStatus}, {expectedStatus}, {isStatusChangeFromUs}, {getTimerInterval()}");
 
-            if (newBacklightStatus != currentBacklightStatus && isStatusChangeFromUs == false)
+            if (!ignoreMouseEvents)
             {
-                selectBacklightLevel((byte)((selectedBacklightLevel + 1) % 5));
-                SystemIdle.makeNotIdle();
-
-                Trace.WriteLine($"Backlight level change: {selectedBacklightLevel}");
-
-                expectedStatus = getStatusFromLevel(selectedBacklightLevel);
-
-                if (expectedStatus != newBacklightStatus)
+                if (newBacklightStatus != currentBacklightStatus && isStatusChangeFromUs == false)
                 {
-                    setBacklightStatusSafe(keyboardBacklightStatusControl, expectedStatus);
-                    Trace.WriteLine($"Change needed!");
+                    selectBacklightLevel((byte)((selectedBacklightLevel + 1) % 5));
+                    SystemIdle.makeNotIdle();
+
+                    Trace.WriteLine($"Backlight level change: {selectedBacklightLevel}");
+
+                    expectedStatus = getStatusFromLevel(selectedBacklightLevel);
+
+                    if (expectedStatus != newBacklightStatus)
+                    {
+                        setBacklightStatusSafe(keyboardBacklightStatusControl, expectedStatus);
+                        Trace.WriteLine($"Change needed!");
+                    }
+                    else
+                    {
+                        currentBacklightStatus = expectedStatus;
+                        Trace.WriteLine($"No change needed!");
+                    }
                 }
-                else
+                else if ((DateTime.Now - lastBacklightOffTime) < ignoreIdleResetDuration && isStatusChangeFromUs)
                 {
-                    currentBacklightStatus = expectedStatus;
-                    Trace.WriteLine($"No change needed!");
+                    // Ignore the idle time reset for this short duration
+                    idleTime = inactivityTimeout + 1; // Force idle to "long enough"
+                }
+                else if (isStatusChangeFromUs && idleTime < getTimerInterval())
+                {
+                    isStatusChangeFromUs = false;
+                }
+
+                Trace.WriteLine($"Current backlight level: {selectedBacklightLevel}");
+
+                if (selectedBacklightLevel > 2)
+                {
+                    if (idleTime >= inactivityTimeout && newBacklightStatus != 0)
+                    {
+                        setBacklightStatusSafe(keyboardBacklightStatusControl, 0);
+                        lastBacklightOffTime = DateTime.Now;  // Track when backlight was turned off
+                        Trace.WriteLine($"Idle! Shutting off!");
+                    }
+                    else if (isStatusChangeFromUs == false && idleTime < inactivityTimeout && newBacklightStatus != getStatusFromLevel(selectedBacklightLevel))
+                    {
+                        setBacklightStatusSafe(keyboardBacklightStatusControl, expectedStatus);
+                        Trace.WriteLine($"Not idle! Setting to {expectedStatus}");
+                    }
+                }
+                else if (expectedStatus != newBacklightStatus)
+                {
+                    Trace.WriteLine($"Setting to expected {expectedStatus}");
+                    setBacklightStatusSafe(keyboardBacklightStatusControl, getStatusFromLevel(selectedBacklightLevel));
                 }
             }
-            else if (isStatusChangeFromUs)
+            else
             {
-                isStatusChangeFromUs = false;
-            }
-
-            Trace.WriteLine($"Current backlight level: {selectedBacklightLevel}");
-
-            if (selectedBacklightLevel > 2)
-            {
-                if (idleTime >= inactivityTimeout && newBacklightStatus != 0)
+                if (selectedBacklightLevel > 2)
                 {
-                    setBacklightStatusSafe(keyboardBacklightStatusControl, 0);
-                    Trace.WriteLine($"Idle! Shutting off!");
+                    if (idleDuration.TotalMilliseconds >= inactivityTimeout && newBacklightStatus != 0)
+                    {
+                        setBacklightStatusSafe(keyboardBacklightStatusControl, 0);
+                        lastBacklightOffTime = DateTime.Now;
+                        Trace.WriteLine($"Idle for {idleDuration.TotalMilliseconds}ms. Turning off backlight.");
+                    }
+                    else if (isStatusChangeFromUs == false && idleDuration.TotalMilliseconds < inactivityTimeout && newBacklightStatus != getStatusFromLevel(selectedBacklightLevel))
+                    {
+                        setBacklightStatusSafe(keyboardBacklightStatusControl, expectedStatus);
+                        Trace.WriteLine("User active. Turning on backlight.");
+                    }
                 }
-                else if (idleTime < inactivityTimeout && newBacklightStatus != getStatusFromLevel(selectedBacklightLevel))
-                {
-                    setBacklightStatusSafe(keyboardBacklightStatusControl, expectedStatus);
-                    Trace.WriteLine($"Not idle! Setting to {expectedStatus}");
-                }
-            }
-            else if (getStatusFromLevel(selectedBacklightLevel) != newBacklightStatus)
-            {
-                setBacklightStatusSafe(keyboardBacklightStatusControl, getStatusFromLevel(selectedBacklightLevel));
             }
         }
         private static string? FindFile(string path, string fileSearched)
@@ -311,6 +484,12 @@ namespace LenovoBacklightImproved
         /*
          *  Public Setter Functions
          */
+
+        public void setIgnoreMouseEvents(bool status)
+        {
+            ignoreMouseEvents = status;
+        }
+
         public void setInactivityTimeout(uint newTimeout)
         {
             inactivityTimeout = newTimeout;

@@ -13,7 +13,7 @@ namespace LenovoBacklightImproved
             InitializeComponent();
 
             this.mainProgram = mainProgram;
-            
+
             Visible = true;
 
             timeoutNum.Value = mainProgram.getInactivityTimeout() / 1000;
@@ -69,6 +69,18 @@ namespace LenovoBacklightImproved
             if (fileDialog.ShowDialog() == DialogResult.OK)
             {
                 dllTextBox.Text = fileDialog.FileName;
+            }
+        }
+
+        private void checkBox_CheckedChanged(object sender, EventArgs e)
+        {
+            CheckBox? cb = sender as CheckBox;
+            if (cb != null && cb.Checked) {
+                mainProgram.setIgnoreMouseEvents(true);
+            }
+            else
+            {
+                mainProgram.setIgnoreMouseEvents(false);
             }
         }
     }

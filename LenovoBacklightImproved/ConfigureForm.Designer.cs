@@ -38,6 +38,7 @@
             btnLoadDll = new Button();
             btnApply = new Button();
             btnSave = new Button();
+            checkBox = new CheckBox();
             ((System.ComponentModel.ISupportInitialize)timeoutNum).BeginInit();
             ((System.ComponentModel.ISupportInitialize)intervalNum).BeginInit();
             SuspendLayout();
@@ -45,68 +46,71 @@
             // timeoutLabel
             // 
             timeoutLabel.AutoSize = true;
-            timeoutLabel.Location = new Point(10, 7);
+            timeoutLabel.Location = new Point(13, 10);
+            timeoutLabel.Margin = new Padding(4, 0, 4, 0);
             timeoutLabel.Name = "timeoutLabel";
-            timeoutLabel.Size = new Size(109, 15);
+            timeoutLabel.Size = new Size(143, 21);
             timeoutLabel.TabIndex = 0;
             timeoutLabel.Text = "Timeout              (s.)";
             // 
             // timeoutNum
             // 
             timeoutNum.DecimalPlaces = 2;
-            timeoutNum.Location = new Point(140, 5);
-            timeoutNum.Margin = new Padding(3, 2, 3, 2);
+            timeoutNum.Location = new Point(180, 7);
+            timeoutNum.Margin = new Padding(4, 3, 4, 3);
             timeoutNum.Maximum = new decimal(new int[] { 3600, 0, 0, 0 });
             timeoutNum.Minimum = new decimal(new int[] { 25, 0, 0, 65536 });
             timeoutNum.Name = "timeoutNum";
-            timeoutNum.Size = new Size(117, 23);
+            timeoutNum.Size = new Size(150, 29);
             timeoutNum.TabIndex = 1;
             timeoutNum.Value = new decimal(new int[] { 15, 0, 0, 0 });
             // 
             // intervalLabel
             // 
             intervalLabel.AutoSize = true;
-            intervalLabel.Location = new Point(10, 32);
+            intervalLabel.Location = new Point(13, 45);
+            intervalLabel.Margin = new Padding(4, 0, 4, 0);
             intervalLabel.Name = "intervalLabel";
-            intervalLabel.Size = new Size(112, 15);
+            intervalLabel.Size = new Size(146, 21);
             intervalLabel.TabIndex = 2;
             intervalLabel.Text = "Check interval (ms.)";
             // 
             // intervalNum
             // 
             intervalNum.Increment = new decimal(new int[] { 100, 0, 0, 0 });
-            intervalNum.Location = new Point(140, 30);
-            intervalNum.Margin = new Padding(3, 2, 3, 2);
+            intervalNum.Location = new Point(180, 42);
+            intervalNum.Margin = new Padding(4, 3, 4, 3);
             intervalNum.Maximum = new decimal(new int[] { 2500, 0, 0, 0 });
             intervalNum.Minimum = new decimal(new int[] { 100, 0, 0, 0 });
             intervalNum.Name = "intervalNum";
-            intervalNum.Size = new Size(117, 23);
+            intervalNum.Size = new Size(150, 29);
             intervalNum.TabIndex = 3;
             intervalNum.Value = new decimal(new int[] { 250, 0, 0, 0 });
             // 
             // dllLabel
             // 
             dllLabel.AutoSize = true;
-            dllLabel.Location = new Point(10, 57);
+            dllLabel.Location = new Point(13, 80);
+            dllLabel.Margin = new Padding(4, 0, 4, 0);
             dllLabel.Name = "dllLabel";
-            dllLabel.Size = new Size(27, 15);
+            dllLabel.Size = new Size(37, 21);
             dllLabel.TabIndex = 4;
             dllLabel.Text = "DLL";
             // 
             // dllTextBox
             // 
-            dllTextBox.Location = new Point(45, 54);
-            dllTextBox.Margin = new Padding(3, 2, 3, 2);
+            dllTextBox.Location = new Point(58, 76);
+            dllTextBox.Margin = new Padding(4, 3, 4, 3);
             dllTextBox.Name = "dllTextBox";
-            dllTextBox.Size = new Size(212, 23);
+            dllTextBox.Size = new Size(271, 29);
             dllTextBox.TabIndex = 5;
             // 
             // btnLoadDll
             // 
-            btnLoadDll.Location = new Point(10, 80);
-            btnLoadDll.Margin = new Padding(3, 2, 3, 2);
+            btnLoadDll.Location = new Point(13, 112);
+            btnLoadDll.Margin = new Padding(4, 3, 4, 3);
             btnLoadDll.Name = "btnLoadDll";
-            btnLoadDll.Size = new Size(79, 22);
+            btnLoadDll.Size = new Size(102, 31);
             btnLoadDll.TabIndex = 6;
             btnLoadDll.Text = "Load DLL";
             btnLoadDll.UseVisualStyleBackColor = true;
@@ -114,10 +118,10 @@
             // 
             // btnApply
             // 
-            btnApply.Location = new Point(94, 80);
-            btnApply.Margin = new Padding(3, 2, 3, 2);
+            btnApply.Location = new Point(121, 112);
+            btnApply.Margin = new Padding(4, 3, 4, 3);
             btnApply.Name = "btnApply";
-            btnApply.Size = new Size(79, 22);
+            btnApply.Size = new Size(102, 31);
             btnApply.TabIndex = 7;
             btnApply.Text = "Apply";
             btnApply.UseVisualStyleBackColor = true;
@@ -125,21 +129,33 @@
             // 
             // btnSave
             // 
-            btnSave.Location = new Point(178, 80);
-            btnSave.Margin = new Padding(3, 2, 3, 2);
+            btnSave.Location = new Point(229, 112);
+            btnSave.Margin = new Padding(4, 3, 4, 3);
             btnSave.Name = "btnSave";
-            btnSave.Size = new Size(79, 22);
+            btnSave.Size = new Size(102, 31);
             btnSave.TabIndex = 8;
             btnSave.Text = "Save";
             btnSave.UseVisualStyleBackColor = true;
             btnSave.Click += btnSave_Click;
             // 
+            // checkBox
+            // 
+            checkBox.AutoSize = true;
+            checkBox.Location = new Point(77, 149);
+            checkBox.Name = "checkBox";
+            checkBox.Size = new Size(177, 25);
+            checkBox.TabIndex = 10;
+            checkBox.Text = "Ignore mouse events";
+            checkBox.UseVisualStyleBackColor = true;
+            checkBox.CheckedChanged += checkBox_CheckedChanged;
+            // 
             // ConfigureForm
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleDimensions = new SizeF(9F, 21F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = SystemColors.Control;
-            ClientSize = new Size(268, 112);
+            ClientSize = new Size(345, 178);
+            Controls.Add(checkBox);
             Controls.Add(btnSave);
             Controls.Add(btnApply);
             Controls.Add(btnLoadDll);
@@ -152,6 +168,7 @@
             ForeColor = SystemColors.ControlText;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             Icon = (Icon)resources.GetObject("$this.Icon");
+            Margin = new Padding(4);
             MaximizeBox = false;
             Name = "ConfigureForm";
             StartPosition = FormStartPosition.CenterScreen;
@@ -173,5 +190,6 @@
         private Button btnLoadDll;
         private Button btnApply;
         private Button btnSave;
+        private CheckBox checkBox;
     }
 }
