@@ -3,12 +3,13 @@
 Lenovo Backlight Improved is a Windows application that gives you better control over your keyboard backlight. 
 
 Its main features are:
-* Having two more backlight states that offer inactivity timeout after which the backlight is automatically turned off and when an activity is introduced, the backlight is automatically turned on again.
+* Having two more backlight states that offer inactivity timeout after which the backlight is automatically turned off and when an activity is introduced, the backlight is automatically turned on again for keyboard events.
 * Having the ability to change the backlight state from the system tray application.
 * Having the option to configure the inactivity timeout and check interval.
 * The backlight will automatically be set to the last set state after sleep.
 * If added to the Windows startup programs, the backlight will be put to the last set state, even after the computer has been restarted/cycled.
 * Works with the default backlight controls.
+* Ingore mouse events from turning on keyboard backlight
 
 # Usage
 
